@@ -1,7 +1,7 @@
 #include "util.h"
 #define FAIL    -1
 
-//Tsekaroume gia allages
+//
 int OpenConnection(const char *hostname, int port){
     int sd;
     struct hostent *host;
@@ -9,19 +9,29 @@ int OpenConnection(const char *hostname, int port){
     if ( (host = gethostbyname(hostname)) == NULL )
     {
         perror(hostname);
-        abort();
+        exit(EXIT_FAILURE);
     }
     sd = socket(PF_INET, SOCK_STREAM, 0);
     bzero(&addr, sizeof(addr));
+    //Define the type of addresses sd can communicate with
     addr.sin_family = AF_INET;
+    //Convert the unsigned short integer hostshort from host byte order to network byte order. 
     addr.sin_port = htons(port);
-    addr.sin_addr.s_addr = *(long*)(host->h_addr);
+    
+    //Interpret host->h_addr as a pointer to a long
+    //The additional star in *(...) dereferences what is now a long for assignment. 
+    //This effectively copies all four bytes of the original char array into the single long value 
+
+    //addr.sin_addr.s_addr = *(long*)(host->h_addr);
+
+    //Might brake in little-endian systems so memcpy should be better
+    memcpy(&(addr.sin_addr.s_addr), host->h_addr, 4);
 
     if ( connect(sd, (struct sockaddr*)&addr, sizeof(addr)) != 0 )
     {
         close(sd);
         perror(hostname);
-        abort();
+        exit(EXIT_FAILURE);
     }
     return sd;
 }
@@ -46,22 +56,24 @@ X509* accessCertificate(X509 *cert, char * path){
 SSL_CTX* InitServerCTX(void){
     const SSL_METHOD *method;
     SSL_CTX *ctx;
-	/* load & register all cryptos, etc. */
+	//Load & register all cryptos, etc.
     OpenSSL_add_all_algorithms();
     ERR_load_crypto_strings();
 
-	/* load all error messages */
+	//Load all error messages 
     SSL_load_error_strings();
 
-	/* create new server-method instance */
-    method = TLSv1_2_server_method();
+    //TLSv1_2_server_method is deprecated
+    //method = TLSv1_2_server_method();
 
-	/* create new context from method */
+    //Create new server-method instance 
+    method = TLS_server_method();
+	//Create new context from method 
     ctx = SSL_CTX_new(method);
     if ( ctx == NULL )
     {
         ERR_print_errors_fp(stderr);
-        abort();
+        exit(EXIT_FAILURE);
     }
     return ctx;
 }
@@ -70,21 +82,24 @@ SSL_CTX* InitCTX(void){
     const SSL_METHOD *method;
     SSL_CTX *ctx;
 
-    /* Load cryptos, et.al. */
+    //Load cryptos, et.al. 
 	OpenSSL_add_all_algorithms();
     ERR_load_crypto_strings();
      
-    /* Bring in and register error messages */ 
+    //Bring in and register error messages 
     SSL_load_error_strings();   
 
-	/* Create new client-method instance */
-    method = TLSv1_2_client_method();
-    /* Create new context */  
+    //TLSv1_2_client_method is deprecated 
+    //method = TLSv1_2_client_method();
+
+    //Create new client-method instance
+    method = TLS_client_method();
+    //Create new context 
     ctx = SSL_CTX_new(method);
     if ( ctx == NULL )
     {
         ERR_print_errors_fp(stderr);
-        abort();
+        exit(EXIT_FAILURE);
     }
     return ctx;
 }
@@ -96,9 +111,11 @@ int OpenListener(int port){
     struct sockaddr_in addr;
     sd = socket(PF_INET, SOCK_STREAM, 0);
     bzero(&addr, sizeof(addr));
-
+    //Define the type of addresses sd can communicate with
     addr.sin_family = AF_INET;
+    //Convert the unsigned short integer hostshort from host byte order to network byte order.
     addr.sin_port = htons(port);
+    //Accept connections from any internet address
     addr.sin_addr.s_addr = INADDR_ANY;
 
     // if (bind(sd, (struct sockaddr*)&addr, sizeof(addr)) != 0 )
@@ -126,45 +143,43 @@ int OpenListener(int port){
 
     return sd;
 }
-int isRoot(){
-    if (getuid() != 0)
-    {
-        return 0;
-    }
-    else
-    {
-        return 1;
-    }
-}
 
-void LoadCertificates(SSL_CTX* ctx, char* CertFile, char* KeyFile){
-
-    //The certificates available via CertFile and KeyFile are trusted.
-    if (SSL_CTX_load_verify_locations(ctx, CertFile, KeyFile) != 1)
-        ERR_print_errors_fp(stderr);
-
-    //Specifies that the default locations from which CA certificates are loaded should be used
-    if (SSL_CTX_set_default_verify_paths(ctx) != 1)
-        ERR_print_errors_fp(stderr);
-
-    //Set the local certificate from CertFile 
-    if ( SSL_CTX_use_certificate_file(ctx, CertFile, SSL_FILETYPE_PEM) <= 0 )
-    {
-        ERR_print_errors_fp(stderr);
-        abort();
+    //Check if user is root user or not
+    int isRoot(){
+        if (getuid() != 0)
+            return 0;
+        else
+            return 1;
     }
-    //Set the private key from KeyFile (may be the same as CertFile) 
-    if ( SSL_CTX_use_PrivateKey_file(ctx, KeyFile, SSL_FILETYPE_PEM) <= 0 )
-    {
-        ERR_print_errors_fp(stderr);
-        abort();
-    }
-    //Verify private key 
-    if ( !SSL_CTX_check_private_key(ctx) )
-    {
-        fprintf(stderr, "Private key does not match the public certificate\n");
-        abort();
-    }
+
+    void LoadCertificates(SSL_CTX* ctx, char* CertFile, char* KeyFile){
+
+        //The certificates available via CertFile and KeyFile are trusted.
+        if (SSL_CTX_load_verify_locations(ctx, CertFile, KeyFile) != 1)
+            ERR_print_errors_fp(stderr);
+
+        //Specifies that the default locations from which CA certificates are loaded should be used
+        if (SSL_CTX_set_default_verify_paths(ctx) != 1)
+            ERR_print_errors_fp(stderr);
+
+        //Set the local certificate from CertFile 
+        if ( SSL_CTX_use_certificate_file(ctx, CertFile, SSL_FILETYPE_PEM) <= 0 )
+        {
+            ERR_print_errors_fp(stderr);
+            exit(EXIT_FAILURE);
+        }
+        //Set the private key from KeyFile (may be the same as CertFile) 
+        if ( SSL_CTX_use_PrivateKey_file(ctx, KeyFile, SSL_FILETYPE_PEM) <= 0 )
+        {
+            ERR_print_errors_fp(stderr);
+            exit(EXIT_FAILURE);
+        }
+        //Verify private key 
+        if ( !SSL_CTX_check_private_key(ctx) )
+        {
+            fprintf(stderr, "Private key does not match the public certificate\n");
+            exit(EXIT_FAILURE);
+        }
 
 }
 
@@ -180,7 +195,6 @@ void ShowCerts(SSL* ssl){
     {
         printf("Server certificates:\n");
         
-        //out = BIO_new(BIO_s_mem());
         subject = X509_NAME_oneline(X509_get_subject_name(cert), NULL, 0);
         printf("Subject: %s\n", subject);
        	
@@ -202,7 +216,7 @@ void Servlet(SSL* ssl) {
     const char* ServerResponse="<\\Body>\
                                <Name>sousi.com</Name>\
                  <year>1.5</year>\
-                 <BlogType>Embedede and c\\c++<\\BlogType>\
+                 <BlogType>Embedded and c\\c++<\\BlogType>\
                  <Author>John Johny<Author>\
                  <\\Body>";
     const char *cpValidMessage = "<Body>\
@@ -232,7 +246,7 @@ void Servlet(SSL* ssl) {
             }
             else
             {
-                //Send reply
+                //Send reply for invalid message
                 SSL_write(ssl, "Invalid Message", strlen("Invalid Message"));
             }
         }

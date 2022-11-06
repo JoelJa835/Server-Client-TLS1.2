@@ -7,7 +7,7 @@ int main(int count, char *Argc[])
     int server;
     char *portnum;
 
-    //Only root user have the permsion to run the server
+    //Only root user have the permision to run the server
     if(!isRoot())
     {
         printf("This program must be run as root/sudo user!!");
@@ -24,10 +24,10 @@ int main(int count, char *Argc[])
     //Initialize SSL 
     ctx = InitServerCTX();
 
-    //load certs
+    //Load certs
     LoadCertificates(ctx, "mycert.pem", "mycert.pem");
 
-    // create server socket 
+    //Create server socket 
     portnum = Argc[1];
     server = OpenListener(atoi(portnum));
 
@@ -38,7 +38,7 @@ int main(int count, char *Argc[])
         socklen_t len = sizeof(addr);
         SSL *ssl;
 
-		//accept connection as usual 
+		//Accept connection as usual 
         int client = accept(server, (struct sockaddr*)&addr, &len);
 
         if (client < 0) {
@@ -48,15 +48,15 @@ int main(int count, char *Argc[])
 
         printf("Connection: %s:%d\n",inet_ntoa(addr.sin_addr), ntohs(addr.sin_port));
 
-		// get new SSL state with context 
+		//Get new SSL state with context 
         ssl = SSL_new(ctx);
-		// set connection socket to SSL state 
+		//Set connection socket to SSL state 
         SSL_set_fd(ssl, client);
-		// service connection
+		//Service connection
         Servlet(ssl);
     }
-		// close server socket 
+		//Close server socket 
         close(server); 
-		// release context 
+		//Release context 
         SSL_CTX_free(ctx);
 }

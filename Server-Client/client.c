@@ -21,13 +21,13 @@ int main(int count, char *strings[]){
     ctx = InitCTX();
     server = OpenConnection(hostname, atoi(portnum));
 
-    //create new SSL connection state 
+    //Create new SSL connection state 
     ssl = SSL_new(ctx); 
-	//attach the socket descriptor 
+	//Attach the socket descriptor 
     SSL_set_fd(ssl, server);    
-    //perform the connection 
+    //Perform the connection 
 
-    //connection fail
+    //Connection fail
     if ( SSL_connect(ssl) == FAIL )   
         ERR_print_errors_fp(stderr);
     else
@@ -43,27 +43,27 @@ int main(int count, char *strings[]){
         printf("\n\nEnter the Password : ");
         scanf("%s",acPassword);
 
-		//construct reply 
+		//Construct reply 
         sprintf(acClientRequest, cpRequestMessage, acUsername,acPassword);
 
         printf("\n\nConnected with %s encryption\n", SSL_get_cipher(ssl));
 
-   		// get any certs 
+   		//Get any certs 
         ShowCerts(ssl);
 
-        //encrypt & send message 
+        //Encrypt & send message 
         SSL_write(ssl,acClientRequest, strlen(acClientRequest));
 
-        //get reply & decrypt
+        //Get reply & decrypt
         bytes = SSL_read(ssl, buf, sizeof(buf));
         buf[bytes] = 0;
         printf("Received: \"%s\"\n", buf);
-	    //release connection state 
+	    //Release connection state 
         SSL_free(ssl); 
     }
-		//close socket
+		//Close socket
         close(server);
-		// release context 
+		//Release context 
         SSL_CTX_free(ctx);
 
     return 0;
