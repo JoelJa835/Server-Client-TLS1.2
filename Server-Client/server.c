@@ -1,5 +1,4 @@
 #include "util.h"
-#define FAIL    -1
 
 int main(int count, char *Argc[])
 {

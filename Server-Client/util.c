@@ -1,7 +1,7 @@
 #include "util.h"
 #define FAIL    -1
 
-//
+
 int OpenConnection(const char *hostname, int port){
     int sd;
     struct hostent *host;
@@ -17,7 +17,7 @@ int OpenConnection(const char *hostname, int port){
     addr.sin_family = AF_INET;
     //Convert the unsigned short integer hostshort from host byte order to network byte order. 
     addr.sin_port = htons(port);
-    
+
     //Interpret host->h_addr as a pointer to a long
     //The additional star in *(...) dereferences what is now a long for assignment. 
     //This effectively copies all four bytes of the original char array into the single long value 
@@ -118,16 +118,6 @@ int OpenListener(int port){
     //Accept connections from any internet address
     addr.sin_addr.s_addr = INADDR_ANY;
 
-    // if (bind(sd, (struct sockaddr*)&addr, sizeof(addr)) != 0 )
-    // {
-    //     perror("can't bind port");
-    //     abort();
-    // }
-    // if ( listen(sd, 10) != 0 )
-    // {
-    //     perror("Can't configure listening port");
-    //     abort();
-    // }
     if (sd < 0) {
         perror("Unable to create socket");
         exit(EXIT_FAILURE);
@@ -144,42 +134,39 @@ int OpenListener(int port){
     return sd;
 }
 
-    //Check if user is root user or not
-    int isRoot(){
-        if (getuid() != 0)
-            return 0;
-        else
-            return 1;
+//Check if user is root user or not
+int isRoot(){
+    if (getuid() != 0)
+        return 0;
+    else
+        return 1;
+}
+
+void LoadCertificates(SSL_CTX* ctx, char* CertFile, char* KeyFile){
+
+    //The certificates available via CertFile and KeyFile are trusted.
+    if (SSL_CTX_load_verify_locations(ctx, CertFile, KeyFile) != 1)
+        ERR_print_errors_fp(stderr);
+
+    //Specifies that the default locations from which CA certificates are loaded should be used
+    if (SSL_CTX_set_default_verify_paths(ctx) != 1)
+        ERR_print_errors_fp(stderr);
+
+    //Set the local certificate from CertFile 
+    if ( SSL_CTX_use_certificate_file(ctx, CertFile, SSL_FILETYPE_PEM) <= 0 ){
+        ERR_print_errors_fp(stderr);
+        exit(EXIT_FAILURE);
     }
-
-    void LoadCertificates(SSL_CTX* ctx, char* CertFile, char* KeyFile){
-
-        //The certificates available via CertFile and KeyFile are trusted.
-        if (SSL_CTX_load_verify_locations(ctx, CertFile, KeyFile) != 1)
-            ERR_print_errors_fp(stderr);
-
-        //Specifies that the default locations from which CA certificates are loaded should be used
-        if (SSL_CTX_set_default_verify_paths(ctx) != 1)
-            ERR_print_errors_fp(stderr);
-
-        //Set the local certificate from CertFile 
-        if ( SSL_CTX_use_certificate_file(ctx, CertFile, SSL_FILETYPE_PEM) <= 0 )
-        {
-            ERR_print_errors_fp(stderr);
-            exit(EXIT_FAILURE);
-        }
-        //Set the private key from KeyFile (may be the same as CertFile) 
-        if ( SSL_CTX_use_PrivateKey_file(ctx, KeyFile, SSL_FILETYPE_PEM) <= 0 )
-        {
-            ERR_print_errors_fp(stderr);
-            exit(EXIT_FAILURE);
-        }
-        //Verify private key 
-        if ( !SSL_CTX_check_private_key(ctx) )
-        {
-            fprintf(stderr, "Private key does not match the public certificate\n");
-            exit(EXIT_FAILURE);
-        }
+    //Set the private key from KeyFile (may be the same as CertFile) 
+    if ( SSL_CTX_use_PrivateKey_file(ctx, KeyFile, SSL_FILETYPE_PEM) <= 0 ){
+        ERR_print_errors_fp(stderr);
+        exit(EXIT_FAILURE);
+    }
+    //Verify private key 
+    if ( !SSL_CTX_check_private_key(ctx) ){
+        fprintf(stderr, "Private key does not match the public certificate\n");
+        exit(EXIT_FAILURE);
+    }
 
 }
 
@@ -229,7 +216,6 @@ void Servlet(SSL* ssl) {
         ERR_print_errors_fp(stderr);
     //else print "Invalid Message"
     else{
-
         //Get any certificates 
         ShowCerts(ssl);       
         //Get request
@@ -237,21 +223,17 @@ void Servlet(SSL* ssl) {
 
         buf[bytes] = '\0';
         printf("Client msg: \"%s\"\n", buf);
-        if ( bytes > 0 )
-        {
-            if(strcmp(cpValidMessage,buf) == 0)
-            {   
+        if ( bytes > 0 ){
+            if(strcmp(cpValidMessage,buf) == 0){   
                 //Send reply
                 SSL_write(ssl, ServerResponse, strlen(ServerResponse)); 
             }
-            else
-            {
+            else{
                 //Send reply for invalid message
                 SSL_write(ssl, "Invalid Message", strlen("Invalid Message"));
             }
         }
-        else
-        {
+        else{
             ERR_print_errors_fp(stderr);
         }
     }
